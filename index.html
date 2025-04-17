@@ -193,7 +193,7 @@
         // Загрузка вопросов из JSON
         async function loadQuestions() {
             try {
-                const response = await fetch('/questions.json');
+                const response = await fetch('questions.json');
                 if (!response.ok) throw new Error('Ошибка загрузки вопросов');
                 const data = await response.json();
                 quizData = data.questions;
