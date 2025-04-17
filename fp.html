@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тестирование по физической подготовке</title>
+    <style>
+        .container { max-width: 800px; margin: 20px auto; padding: 20px; font-family: Arial, sans-serif; }
+        .question { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .results { display: none; padding: 20px; background-color: #f8f9fa; margin-top: 20px; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px; margin-bottom: 10px; }
+        button:hover { background-color: #0056b3; }
+        .correct { background-color: #d4edda; }
+        .wrong { background-color: #f8d7da; }
+        .stats { margin-bottom: 20px; padding: 15px; background-color: #f0f0f0; border-radius: 5px; }
+        .mode-buttons { margin-bottom: 15px; }
+        .reset-btn { background-color: #dc3545; }
+        label { display: block; margin: 5px 0; }
+        .test-mode { background-color: #28a745; }
+        .active-mode { background-color: #0056b3; font-weight: bold; }
+        .multiple-info { color: #6c757d; font-style: italic; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="stats" id="stats"></div>
+        <div class="mode-buttons">
+            <button onclick="startFullTest()" class="test-mode active-mode" id="fullTestBtn">Все вопросы</button>
+            <button onclick="startRandomTest()" class="test-mode" id="randomTestBtn">10 случайных вопросов</button>
+            <button onclick="retryFailed()" id="retryBtn" disabled>Повторить ошибки</button>
+            <button onclick="resetStats()" class="reset-btn">Сбросить статистику</button>
+        </div>
+        <div id="quiz"></div>
+        <button onclick="submitQuiz()">Завершить тест</button>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        let currentQuestions = [];
+        let failedQuestions = [];
+        let currentMode = 'full'; // 'full' или 'random'
+        const storageKey = 'quizStats';
+        
+        const quizData = [
+            // Вариант 2
+            {
+                question: "Какой приказ МО РФ определяет порядок организации физической подготовки военнослужащих ВС РФ?",
+                answers: [
+                    "Приказ МО РФ №520 от 2017 г.",
+                    "Приказ МО РФ №385 от 2005 г.", 
+                    "Приказ МО РФ №230 от 2023 г."
+                ],
+                correct: 0
+            },
+            {
+                question: "Уровень развития физических качеств проверяется по:",
+                answers: [
+                    "2 общефизическим упражнениям",
+                    "1 физическому упражнению", 
+                    "3 специальным упражнениям"
+                ],
+                correct: 1
+            },
+            {
+                question: "В каких случаях упражнение разучивается в целом? (Выберите все верные варианты)",
+                answers: [
+                    "Если упражнение простое или нельзя разделить на элементы",
+                    "Если сложное и делится на элементы",
+                    "Если выполняется с остановками",
+                    "Если нельзя выполнить целиком и разделить"
+                ],
+                correct: [0, 3], // Множественный выбор
+                multiple: true
+            },
+            {
+                question: "Пороговый минимум для курсантов 5 курса:",
+                answers: ["34", "32", "38", "30"],
+                correct: 0
+            },
+            {
+                question: "Упражнения на развитие силы: (Выберите все подходящие)",
+                answers: [
+                    "7,5,19,17,6",
+                    "18,21,53,67,2", 
+                    "3,12,7,1,5",
+                    "2,25,41,4,21"
+                ],
+                correct: [0, 2], // Множественный выбор
+                multiple: true
+            },
+
+            // Вариант 3
+            {
+                question: "Когда проводится проверка физической подготовленности? (Выберите все верные варианты)",
+                answers: [
+                    "Инспекторские проверки",
+                    "Промежуточная аттестация", 
+                    "Общевойсковая подготовка",
+                    "Поступление офицеров",
+                    "Перед контрактом"
+                ],
+                correct: [0, 1, 3, 4], // Множественный выбор
+                multiple: true
+            },
+            {
+                question: "Номер упражнения 'Сгибание рук в упоре лежа':",
+                answers: ["№7", "№5", "№1", "№3"],
+                correct: 2
+            },
+            {
+                question: "Качество, развиваемое упражнением №1:",
+                answers: ["Быстрота", "Выносливость", "Ловкость", "Сила"],
+                correct: 3
+            },
+
+            // Вариант 4
+            {
+                question: "Цель учебно-методического сбора:",
+                answers: [
+                    "Обучение теории",
+                    "Унификация подходов к ФП", 
+                    "Демонстрация методик"
+                ],
+                correct: 1
+            },
+            {
+                question: "Возрастная группа 25-29 лет:",
+                answers: ["Группа 1", "Группа 2", "Группа 6", "Группа 7"],
+                correct: 3
+            },
+
+            // Вариант 5
+            {
+                question: "Правильное выполнение упражнения №1:",
+                answers: [
+                    "Подъем ног к перекладине",
+                    "Отжимания от пола", 
+                    "Наклоны туловища"
+                ],
+                correct: 1
+            },
+            {
+                question: "Продолжительность утренней зарядки:",
+                answers: ["40-50 мин", "30 мин", "50 мин", "Зависит от сезона"],
+                correct: 1
+            },
+
+            // Вариант 6
+            {
+                question: "Команда для начала упражнения №3:",
+                answers: [
+                    "«Вперед»", 
+                    "«К снаряду»", 
+                    "«Приступить»", 
+                    "«Внимание, марш»"
+                ],
+                correct: 3
+            }
+        ];
+
+        let stats = {
+            totalAttempts: 0,
+            totalCorrect: 0,
+            lastScore: 0,
+            failed: []
+        };
+
+        function loadStats() {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+                stats = JSON.parse(saved);
+                failedQuestions = stats.failed.map(index => quizData[index]);
+            }
+            document.getElementById('retryBtn').disabled = failedQuestions.length === 0;
+        }
+
+        function saveStats() {
+            stats.failed = [...new Set(stats.failed)];
+            localStorage.setItem(storageKey, JSON.stringify(stats));
+            document.getElementById('retryBtn').disabled = failedQuestions.length === 0;
+        }
+
+        function initialize() {
+            loadStats();
+            startFullTest();
+            updateStatsDisplay();
+        }
+
+        function startFullTest() {
+            currentMode = 'full';
+            document.getElementById('fullTestBtn').classList.add('active-mode');
+            document.getElementById('randomTestBtn').classList.remove('active-mode');
+            currentQuestions = quizData.map((q, i) => ({...q, originalIndex: i}));
+            buildQuiz(currentQuestions);
+        }
+
+        function startRandomTest() {
+            currentMode = 'random';
+            document.getElementById('randomTestBtn').classList.add('active-mode');
+            document.getElementById('fullTestBtn').classList.remove('active-mode');
+            
+            // Создаем копию массива вопросов
+            let shuffled = [...quizData];
+            // Перемешиваем вопросы
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            // Берем первые 10 вопросов
+            currentQuestions = shuffled.slice(0, 10).map((q, i) => ({...q, originalIndex: quizData.indexOf(q)}));
+            buildQuiz(currentQuestions);
+        }
+
+        function buildQuiz(questions) {
+            const quizContainer = document.getElementById('quiz');
+            quizContainer.innerHTML = '';
+            
+            questions.forEach((question, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                
+                const inputType = question.multiple ? 'checkbox' : 'radio';
+                const multipleInfo = question.multiple ? '<p class="multiple-info">(Выберите несколько вариантов)</p>' : '';
+                
+                questionDiv.innerHTML = `
+                    <h3>Вопрос ${question.originalIndex + 1}: ${question.question}</h3>
+                    ${multipleInfo}
+                    ${question.answers.map((answer, i) => `
+                        <label>
+                            <input type="${inputType}" name="question${index}" value="${i}">
+                            ${answer}
+                        </label>
+                    `).join('')}
+                `;
+                quizContainer.appendChild(questionDiv);
+            });
+        }
+
+        function submitQuiz() {
+            const results = document.getElementById('results');
+            let score = 0;
+            let newFailed = [];
+
+            currentQuestions.forEach((question, index) => {
+                const selectedInputs = document.querySelectorAll(`input[name="question${index}"]:checked`);
+                const questionDiv = document.getElementsByClassName('question')[index];
+                
+                let selectedValues = Array.from(selectedInputs).map(input => parseInt(input.value));
+                
+                // Для вопросов с множественным выбором
+                if (question.multiple) {
+                    // Сортируем массивы для сравнения
+                    const correctSorted = Array.isArray(question.correct) ? [...question.correct].sort() : [question.correct];
+                    const selectedSorted = selectedValues.sort();
+                    
+                    // Проверяем, совпадают ли массивы
+                    const isCorrect = correctSorted.length === selectedSorted.length && 
+                                      correctSorted.every((val, i) => val === selectedSorted[i]);
+                    
+                    if (isCorrect) {
+                        score++;
+                        questionDiv.classList.add('correct');
+                        // Удаляем вопрос из списка ошибок, если он там был
+                        const failIndex = stats.failed.indexOf(question.originalIndex);
+                        if (failIndex > -1) {
+                            stats.failed.splice(failIndex, 1);
+                        }
+                    } else {
+                        questionDiv.classList.add('wrong');
+                        if (!stats.failed.includes(question.originalIndex)) {
+                            stats.failed.push(question.originalIndex);
+                        }
+                        newFailed.push(question);
+                    }
+                } 
+                // Для вопросов с одним вариантом ответа
+                else {
+                    const isCorrect = selectedValues.length === 1 && 
+                                    selectedValues[0] === question.correct;
+                    
+                    if (isCorrect) {
+                        score++;
+                        questionDiv.classList.add('correct');
+                        // Удаляем вопрос из списка ошибок, если он там был
+                        const failIndex = stats.failed.indexOf(question.originalIndex);
+                        if (failIndex > -1) {
+                            stats.failed.splice(failIndex, 1);
+                        }
+                    } else {
+                        questionDiv.classList.add('wrong');
+                        if (!stats.failed.includes(question.originalIndex)) {
+                            stats.failed.push(question.originalIndex);
+                        }
+                        newFailed.push(question);
+                    }
+                }
+
+                const inputs = questionDiv.querySelectorAll('input');
+                inputs.forEach(input => input.disabled = true);
+            });
+
+            stats.totalAttempts++;
+            stats.totalCorrect += score;
+            stats.lastScore = score;
+            failedQuestions = stats.failed.map(index => quizData[index]);
+            
+            saveStats();
+            updateStatsDisplay();
+
+            results.style.display = 'block';
+            results.innerHTML = `
+                <h2>Результаты:</h2>
+                <p>Правильных ответов: ${score} из ${currentQuestions.length}</p>
+                ${newFailed.length ? `<p>Ошибок: ${newFailed.length}</p>` : ''}
+            `;
+        }
+
+        function updateStatsDisplay() {
+            const statsDiv = document.getElementById('stats');
+            const totalQuestions = currentMode === 'full' ? quizData.length : 10;
+            const avg = stats.totalAttempts > 0 
+                ? (stats.totalCorrect / (stats.totalAttempts * totalQuestions) * 100).toFixed(1)
+                : 0;
+            
+            statsDiv.innerHTML = `
+                <h2>Статистика:</h2>
+                <p>Всего попыток: ${stats.totalAttempts}</p>
+                <p>Последний результат: ${stats.lastScore}/${totalQuestions}</p>
+                <p>Средний результат: ${avg}%</p>
+                <p>Накопленные ошибки: ${stats.failed.length}</p>
+                <p>Режим: ${currentMode === 'full' ? 'Все вопросы' : '10 случайных вопросов'}</p>
+            `;
+        }
+
+        function retryFailed() {
+            if (failedQuestions.length > 0) {
+                currentQuestions = failedQuestions;
+                buildQuiz(currentQuestions);
+            }
+        }
+
+        function resetStats() {
+            if (confirm('Вы уверены, что хотите сбросить всю статистику?')) {
+                localStorage.removeItem(storageKey);
+                stats = {
+                    totalAttempts: 0,
+                    totalCorrect: 0,
+                    lastScore: 0,
+                    failed: []
+                };
+                failedQuestions = [];
+                saveStats();
+                updateStatsDisplay();
+                if (currentMode === 'full') {
+                    startFullTest();
+                } else {
+                    startRandomTest();
+                }
+            }
+        }
+
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>
